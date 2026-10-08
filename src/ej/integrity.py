@@ -35,6 +35,14 @@ RELEASE_PROVENANCE = {
         'pool_sha256': '35b11986cdcdda04d3a8dfb430c321a74096b21218eb647cf33470a0897ef67d',
         'runtime_repo': 'codecraf8/ej-benchmark-releases', 'runtime_commit': '3157bb9',
     },
+    '3b3e66d28fb423f9': {
+        'status': 'v1.0.1, licence fix of the withdrawn v1.0.0 (same architecture); private Hugging Face revision, tag v1.0.1',
+        'research_repo': 'codecraf8/rev (private)', 'research_commit': '963a4fc', 'research_branch': 'edge-master',
+        'key_tree': 'f46cf7c edge/ with student_lb.CK_DIR = lowbit-b3b010513f948ceb (scripts/state_key.py --ck-dir)',
+        'pool_sha256': 'ce1c1a6fecfd62a90317f6efc4f90fd5f9261becb7081fd00235a6f4d5ee9dbe',
+        'runtime_repo': 'codecraf8/ej-benchmark-releases', 'runtime_commit': '2502481',
+        'hf_repo': '5ak3t/ej (private)', 'hf_revision': '1038d03e1696fa6452749846b6b2e48135c790ec',
+    },
 }
 
 

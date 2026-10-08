@@ -9,6 +9,8 @@ on the licence-clean pool v2b, with the low-bit encoder re-distilled on pool v2b
 pending the maintainer's decision. A later round of model changes failed its pre-registered evaluation and is not
 released.
 
+- Packaged from public commit `2502481` (runtime) and research commit `963a4fc`; Hugging Face revision
+  `1038d03e1696fa6452749846b6b2e48135c790ec` (private, tag `v1.0.1`).
 - `ej.integrity.KNOWN_RELEASES` / `RELEASE_PROVENANCE` list v1.0.1; `scripts/maintainer_pickle.py` checks the encoder's
   sha256 by checkpoint directory (both encoders listed).
 
