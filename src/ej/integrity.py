@@ -1,22 +1,14 @@
-"""Integrity checks for ej: runtime manifest, release file hashes, and the guards of the maintainer-only pickle path.
+"""Integrity checks for ej: runtime manifest, release file hashes, and the runtime's no-unpickle guard of the encoder loader.
 
-Ported from the research repository's release/v1/load.py (file_sha256, check_sha, verify_files, guard_lowbit, KNOWN_STATES,
-LOWBIT_SHA256), with the same behaviour: a mismatch raises ValueError before anything is read. User-facing loading is
-pickle-free (ej.safe); the pickle constants and guards below are used only by scripts/hf_layout.py when a maintainer
-exports the original .pt files."""
+Ported from the research repository's release/v1/load.py (file_sha256, check_sha, guard_lowbit), with the same behaviour: a
+mismatch raises ValueError before anything is read. Loading is pickle-free (ej.safe) and, once loaded, no runtime module
+can unpickle (ej.scope.forbid_unpickling). The maintainer-only pickle export (sha256 of the original .pt files, unpickling
+them) is not part of the package: it lives in scripts/maintainer_pickle.py (audit M-25)."""
 import hashlib
 import os
 
 RUNTIME = os.path.join(os.path.dirname(os.path.abspath(__file__)), '_runtime')
 MANIFEST = os.path.join(RUNTIME, 'RUNTIME_SHA256')
-
-# Maintainer-only pickle path (scripts/hf_layout.py --state-pt / --w23-pt).
-LOWBIT_REL = os.path.join('lowbit-9c15e5f8f8e3b927', 'w23.pt')
-LOWBIT_SHA256 = 'd1a0fdf22fabaa3d09efa77c0d5f89fa1e12b6a4f5b57b82bbcd3f72f95abd2f'
-# Pickled state files with their verified sha256 (add the released file at packaging time).
-KNOWN_STATES = {
-    'state-14a3e64fb5675f19.pt': 'fb4e8bd7c0e9dc31fb6f65a850bbf96fab2fcaca1f932909ca9d8c8e36dbc81f',
-}
 
 # Pickle-free release files, by state key prefix: sha256 of each .safetensors file and of each skeleton's JSON bytes
 # (after gunzip, so .json and .json.gz give the same value). Add the released state at packaging time.
@@ -26,6 +18,16 @@ KNOWN_RELEASES = {
         'state.json': '22e419bcf66f07bc28d1414e2c00f947c4e560b6a264549756825b67b401c68d',
         'encoder/w23.safetensors': '9e996615fb374cd39af6507f2d88c8cd6fa46ef87b09ed946a2605a083c326ed',
         'encoder/w23.json': '66ef3ad38574ee50efad18e723a8135e9709b96dd1d53b42e0b3a717e1f2316f',
+    },
+}
+# Where each known release's code lives (audit M-14): the research tree whose student*/train_* files and pool reproduce the
+# state key (scripts/state_key.py), and the public commit holding the runtime the weights were packaged with.
+RELEASE_PROVENANCE = {
+    '14a3e64fb5675f19': {
+        'status': 'v1.0.0, withdrawn before publication (its training pool contains CC BY-NC data; never public on the Hub)',
+        'research_repo': 'codecraf8/rev (private)', 'research_commit': 'f46cf7c', 'research_branch': 'edge-master',
+        'pool_sha256': '35b11986cdcdda04d3a8dfb430c321a74096b21218eb647cf33470a0897ef67d',
+        'runtime_repo': 'codecraf8/ej-benchmark-releases', 'runtime_commit': '3157bb9',
     },
 }
 
@@ -73,12 +75,6 @@ def verify_runtime(runtime_dir=RUNTIME, manifest=MANIFEST):
     for name, sha in want.items():
         check_sha(os.path.join(runtime_dir, name), sha, 'runtime module')
     return len(want)
-
-
-def verify_files(state_path, state_sha256, lowbit):
-    """Maintainer pickle path: sha256 of a pickled state file and of the pickled low-bit encoder, before unpickling."""
-    check_sha(state_path, state_sha256, 'state file')
-    check_sha(lowbit, LOWBIT_SHA256, 'low-bit encoder')
 
 
 def forbid_lowbit_pickle():

@@ -1,0 +1,32 @@
+{
+ "rival": "ej",
+ "suite": "tickets",
+ "records": 104,
+ "nll": 0.6634,
+ "soft_ce": null,
+ "acc": 0.6859,
+ "ece15": 0.076,
+ "ca": 0.0,
+ "ca_risk": null,
+ "questions": 312,
+ "ms_per_record": 301.2,
+ "p50_ms": 307.8,
+ "load_plus_warmup_s": 10.7,
+ "threads": 1,
+ "threads_measured": [
+  1
+ ],
+ "threads_ok": true,
+ "cache": "warm",
+ "box": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cores": 4,
+  "python": "3.11.15"
+ },
+ "loadavg_1m": [
+  1.24,
+  1.14
+ ],
+ "weights": "ej 1.0.0 (withdrawn), state 14a3e64fb5675f19",
+ "suite_file": "development suite tickets (sha256 in benchmark/suites/SHA256SUMS)"
+}

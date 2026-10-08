@@ -1,0 +1,32 @@
+{
+ "rival": "ej",
+ "suite": "zs_massive",
+ "records": 1000,
+ "nll": 0.4792,
+ "soft_ce": null,
+ "acc": 0.832,
+ "ece15": 0.0427,
+ "ca": 0.8643,
+ "ca_risk": 0.099,
+ "questions": 1000,
+ "ms_per_record": 282.9,
+ "p50_ms": 279.6,
+ "load_plus_warmup_s": 9.3,
+ "threads": 1,
+ "threads_measured": [
+  1
+ ],
+ "threads_ok": true,
+ "cache": "cold",
+ "box": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+  "cores": 4,
+  "python": "3.11.15"
+ },
+ "loadavg_1m": [
+  1.13,
+  1.1
+ ],
+ "weights": "ej 1.0.0 (withdrawn), state 14a3e64fb5675f19",
+ "suite_file": "development suite zs_massive (sha256 in benchmark/suites/SHA256SUMS)"
+}

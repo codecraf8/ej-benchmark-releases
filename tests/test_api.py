@@ -126,6 +126,6 @@ def test_hf_layout_refuses_inside_git_repo(tmp_path):
         pytest.skip('git not installed')
     subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
     r = subprocess.run([sys.executable, os.path.join(ROOT, 'scripts', 'hf_layout.py'), str(tmp_path / 'out'),
-                        '--from-safe', str(tmp_path)], capture_output=True, text=True)
+                        '--from-safe', str(tmp_path), '--research-commit', 'x'], capture_output=True, text=True)
     assert r.returncode != 0 and 'inside a git work tree' in r.stderr
     assert not (tmp_path / 'out').exists()

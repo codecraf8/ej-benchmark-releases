@@ -8,8 +8,11 @@ usage: python benchmark/run_bench.py SUITE_PATH MODEL [MODEL ...] [--out DIR] [-
   --final     required for a suite under $BENCH_FINAL_DIR (sealed test suites: run once per release, never for tuning)
 Writes DIR/<suite>.<model>.preds.jsonl ({'id', 'source', 'latency_ms', 'probs'}) and DIR/<suite>.<model>.summary.json;
 prints one JSON line per model. Only the summary files are aggregates; keep the preds files private when the suite is.
-Timing: model load + first record (warm-up, not timed), then wall-clock ms per record, one record per call; torch threads =
-BENCH_THREADS (default 1)."""
+Timing (one protocol for every model, audit M-9): model load + first record (warm-up, not timed), then wall-clock ms per
+record, one record per call; torch threads = BENCH_THREADS (default 1). The summary records the threads observed inside the
+timed calls (`threads_measured`; `threads_ok` is False when they differ from BENCH_THREADS), the box (CPU model, cores) and
+the 1-minute load average before and after the timed loop, so latencies from different boxes or loads are not ranked
+together. EDGE_COLD=1 (ej only) bypasses the prediction-time caches: `cache` = 'cold' in the summary."""
 import argparse
 import hashlib
 import json
@@ -46,6 +49,26 @@ def sample(recs, n):
     return out
 
 
+def box():
+    """{'cpu': model name, 'cores': logical CPUs, 'python': version} of this machine."""
+    import platform
+    cpu = platform.processor() or platform.machine()
+    try:
+        with open('/proc/cpuinfo') as f:
+            cpu = next((ln.split(':', 1)[1].strip() for ln in f if ln.startswith('model name')), cpu)
+    except OSError:
+        pass
+    return {'cpu': cpu, 'cores': os.cpu_count(), 'python': platform.python_version()}
+
+
+def loadavg():
+    """1-minute load average (None where the OS has none)."""
+    try:
+        return round(os.getloadavg()[0], 2)
+    except (OSError, AttributeError):
+        return None
+
+
 def run(recs, model, out_dir, tag):
     """Predict recs one record per call, check and score them; writes the preds and summary files; returns the summary."""
     import rivals
@@ -54,11 +77,13 @@ def run(recs, model, out_dir, tag):
     predict = rivals.get(model)
     first = predict(blind[:1])  # loads the model + warm-up (not timed)
     load_s = time.time() - t0
-    preds, lat = list(first), [None]
+    preds, lat, seen = list(first), [None], set()
+    want, load_before = int(os.environ.get('BENCH_THREADS', '1')), loadavg()
     for b in blind[1:]:  # one record per call: per-record latency
         t1 = time.perf_counter()
         preds += predict([b])
         lat.append((time.perf_counter() - t1) * 1000)
+        seen.add(rivals.threads_used(model))
     timed = sorted(x for x in lat if x is not None)
     for p, r in zip(preds, recs):
         scoring.check(p, r)
@@ -68,7 +93,9 @@ def run(recs, model, out_dir, tag):
     line = {'rival': model, 'suite': tag, 'records': len(recs), **scoring.summary(scoring.rows(recs, preds)),
             'ms_per_record': round(sum(timed) / max(len(timed), 1), 1),
             'p50_ms': round(timed[len(timed) // 2], 1) if timed else None, 'load_plus_warmup_s': round(load_s, 1),
-            'threads': int(os.environ.get('BENCH_THREADS', '1'))}
+            'threads': want, 'threads_measured': sorted(seen, key=str),
+            'threads_ok': seen <= {want, None}, 'cache': 'cold' if os.environ.get('EDGE_COLD') == '1' else 'warm',
+            'box': box(), 'loadavg_1m': [load_before, loadavg()]}
     with open(os.path.join(out_dir, f'{tag}.{model}.summary.json'), 'w') as f:
         json.dump(line, f, indent=1)
     return line

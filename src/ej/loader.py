@@ -6,7 +6,8 @@ Weights directory layout (built by scripts/hf_layout.py; the Hugging Face reposi
   encoder/w23.safetensors + encoder/w23.json   low-bit encoder (2-bit weights, 3-bit attention, trimmed vocabulary)
 Checks before anything is decoded (verify=True): every file's sha256 against config.json; the files against KNOWN_RELEASES
 when the state key is listed there (the trust anchor shipped in this package); config.json's runtime sha256 and e5 revision
-against this package; every runtime module against _runtime/RUNTIME_SHA256. Decoding itself never unpickles (ej.safe).
+against this package; every runtime module against _runtime/RUNTIME_SHA256. Decoding itself never unpickles (ej.safe), and
+after loading no runtime module can unpickle (ej.scope.forbid_unpickling).
 
 Environment: $EDGE_CKPT is set to the weights directory; $EDGE_CACHE defaults to $XDG_CACHE_HOME/ej (else ~/.cache/ej) and
 receives the trimmed tokenizer vocabulary; $HF_HOME defaults to the Hugging Face default location. The base model
@@ -21,26 +22,14 @@ from .integrity import RUNTIME
 E5_MODEL = 'intfloat/e5-small-v2'
 E5_REVISION = 'ffb93f3bd4047442299a41ebb6fa998a38507c52'
 LAYOUT = {'state': 'state', 'encoder': os.path.join('encoder', 'w23')}  # skeleton/tensor prefixes inside the weights dir
-PINNED_CALLS = []  # (class name, model, revision) of every from_pretrained call pin_e5_revision rewrote
 
 
-def pin_e5_revision():
-    """Wrap transformers Auto*.from_pretrained so a call for E5_MODEL without an explicit revision gets E5_REVISION.
-    The runtime calls from_pretrained(E5_MODEL) with no revision; the pin keeps that code unchanged. Idempotent."""
-    import transformers
-    for name in ('AutoModel', 'AutoTokenizer', 'AutoConfig'):
-        cls = getattr(transformers, name)
-        if getattr(cls.from_pretrained, '_rev_pinned', False):
-            continue
-
-        def wrapped(*args, _orig=cls.from_pretrained, _name=name, **kw):
-            model = args[0] if args else kw.get('pretrained_model_name_or_path')
-            if model == E5_MODEL and kw.get('revision') is None:
-                kw['revision'] = E5_REVISION
-                PINNED_CALLS.append((_name, model, E5_REVISION))
-            return _orig(*args, **kw)
-        wrapped._rev_pinned = True
-        cls.from_pretrained = staticmethod(wrapped)
+def e5_pinned():
+    """Context manager: inside an ej call, from_pretrained(E5_MODEL) without a revision gets E5_REVISION (ej.scope.e5_pinned).
+    The runtime calls from_pretrained(E5_MODEL) with no revision; the pin keeps that code unchanged and is undone on exit, so
+    transformers is never patched outside ej.load / Model.predict (audit M-6)."""
+    from .scope import e5_pinned as pin
+    return pin(E5_MODEL, E5_REVISION)
 
 
 def cache_dir():
@@ -122,18 +111,22 @@ def verify_weights(weights_dir, cfg):
     return []
 
 
-def load_state(weights_dir, verify=True):
-    """(fitted state, config) from a weights directory, with the runtime ready to predict. Never unpickles."""
+def load_state(weights_dir, verify=True, memo_max=None):
+    """(fitted state, config) from a weights directory, with the runtime ready to predict. Never unpickles.
+    The runtime's import-time side effects (2 torch threads, torch.manual_seed(0)) are undone before returning (ej.scope);
+    every runtime module gets a torch / pickle whose load refuses (forbid_unpickling); the encoder memo is bounded."""
+    from . import safe, scope
     cfg = read_config(weights_dir)
     for w in (verify_weights(weights_dir, cfg) if verify else ['verification skipped (verify=False)']):
         print(f'ej: warning: {w}', file=sys.stderr)
     prepare_environment(weights_dir)
     check_runtime_imports()
-    pin_e5_revision()
-    from . import safe
-    state = safe.install(os.path.join(weights_dir, LAYOUT['state']), os.path.join(weights_dir, LAYOUT['encoder']),
-                         ckpt_dir=weights_dir, key=cfg.get('state_key') if verify else None)
-    integrity.forbid_lowbit_pickle()
-    import student  # noqa: F401  (runtime entry point; imported here so a bad environment fails at load time)
+    with scope.isolated_import(), e5_pinned():
+        state = safe.install(os.path.join(weights_dir, LAYOUT['state']), os.path.join(weights_dir, LAYOUT['encoder']),
+                             ckpt_dir=weights_dir, key=cfg.get('state_key') if verify else None)
+        integrity.forbid_lowbit_pickle()
+        import student  # noqa: F401  (runtime entry point; imported here so a bad environment fails at load time)
     check_runtime_imports()
+    scope.forbid_unpickling(RUNTIME)
+    scope.install_memo(memo_max)
     return state, cfg

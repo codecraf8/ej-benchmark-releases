@@ -37,3 +37,14 @@ def get(name):
     mod, kw, _, _ = RIVALS[name]
     m = importlib.import_module(f'{__name__}.{mod}')
     return lambda records: m.predict(records, **kw)
+
+
+def threads_used(name):
+    """Threads in effect inside the model's last predict call: the adapter's threads_used() when it has one, else torch's
+    process setting when torch is loaded, else None (servers and remote APIs: not observable from here)."""
+    import sys
+    m = importlib.import_module(f'{__name__}.{RIVALS[name][0]}')
+    if hasattr(m, 'threads_used'):
+        return m.threads_used()
+    t = sys.modules.get('torch')
+    return t.get_num_threads() if t is not None else None

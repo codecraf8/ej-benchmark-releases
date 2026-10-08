@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Build the Hugging Face upload directory for ej weights. Builds files only: it never uploads anything.
 
-usage: python scripts/hf_layout.py OUT_DIR --from-safe DIR
-       python scripts/hf_layout.py OUT_DIR --state-pt STATE.pt --w23-pt W23.pt [--state-sha SHA]   (maintainer only)
+usage: python scripts/hf_layout.py OUT_DIR --from-safe DIR --research-commit SHA [--remote origin]
+       EJ_MAINTAINER_UNPICKLE=1 python scripts/hf_layout.py OUT_DIR --state-pt STATE.pt --w23-pt W23.pt [--state-sha SHA] ...
   --from-safe DIR   an export directory holding state-<key16>.json + .safetensors and lowbit-<id>/w23.json + .safetensors
-  --state-pt/--w23-pt  the original pickled files: sha256-checked against ej.integrity (KNOWN_STATES / --state-sha and
-                    LOWBIT_SHA256) BEFORE they are unpickled, then exported pickle-free with ej.safe.export
+  --state-pt/--w23-pt  the original pickled files (maintainer only, scripts/maintainer_pickle.py): sha256-checked against
+                    KNOWN_STATES / --state-sha and LOWBIT_SHA256 BEFORE they are unpickled, then exported pickle-free
+  --research-commit the research commit whose student*/train_* files + pool reproduce the state key (scripts/state_key.py)
+Provenance (audit M-14): config.json `code_commit` is this repository's HEAD, which must be clean AND contained in a branch
+of the remote (`git ls-remote`), so the named commit can be fetched by anyone; otherwise the build refuses.
 OUT_DIR must be new or empty and must not be inside a git work tree (weights never go into git). It receives:
   state.safetensors, state.json.gz, encoder/w23.safetensors, encoder/w23.json   (the weights; no pickle)
   config.json   ej version, code commit, runtime sha256, e5 model + revision, state key, sha256 of every weights file
@@ -25,6 +28,7 @@ import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, 'src'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from ej import integrity, loader, safe  # noqa: E402
 
 FRONT_MATTER = """---
@@ -75,29 +79,34 @@ def from_safe(src):
 
 
 def from_pickles(state_pt, w23_pt, state_sha, tmp):
-    """Maintainer path: check both pickles' sha256, unpickle them, export pickle-free into tmp. -> prefixes."""
-    sha = state_sha or integrity.KNOWN_STATES.get(os.path.basename(state_pt))
-    if not sha:
-        sys.exit(f'hf_layout: no known sha256 for {state_pt}; pass --state-sha')
-    integrity.verify_files(state_pt, sha, w23_pt)
-    loader.prepare_environment(tmp)  # the pickles name runtime classes by bare module name
-    import torch
-    st = safe.export(torch.load(state_pt, map_location='cpu', weights_only=False), os.path.join(tmp, 'state'))
-    w = safe.export(torch.load(w23_pt, map_location='cpu', weights_only=False), os.path.join(tmp, 'w23'))
-    bad = set(st['classes']) - safe.ALLOWED_CLASSES
-    if bad or w['classes']:
-        sys.exit(f'hf_layout: classes outside the allowlist: {sorted(bad) + w["classes"]}')
-    return st['json'][:-5], w['json'][:-5]
-
-
-def git_commit():
-    """HEAD of this repository, with '-dirty' when the work tree has changes."""
+    """Maintainer path (scripts/maintainer_pickle.py: opt-in + sha256 before unpickling). -> prefixes."""
+    import maintainer_pickle
     try:
-        head = subprocess.check_output(['git', '-C', ROOT, 'rev-parse', 'HEAD'], text=True, stderr=subprocess.DEVNULL).strip()
-        dirty = subprocess.check_output(['git', '-C', ROOT, 'status', '--porcelain'], text=True, stderr=subprocess.DEVNULL).strip()
-        return head + ('-dirty' if dirty else '')
-    except (OSError, subprocess.CalledProcessError):
-        return 'unknown'
+        return maintainer_pickle.export_pickles(state_pt, w23_pt, state_sha, tmp)
+    except maintainer_pickle.MaintainerOnly as e:
+        sys.exit(f'hf_layout: {e}')
+
+
+def _git(repo, *args):
+    return subprocess.run(['git', '-C', repo, *args], capture_output=True, text=True)
+
+
+def pushed_commit(repo=ROOT, remote='origin'):
+    """HEAD of `repo` when the work tree is clean and HEAD is contained in a branch of `remote`; else (None, reason)."""
+    head = _git(repo, 'rev-parse', 'HEAD')
+    if head.returncode:
+        return None, 'not a git repository'
+    head = head.stdout.strip()
+    if _git(repo, 'status', '--porcelain', '--untracked-files=no').stdout.strip():
+        return None, f'{repo} has uncommitted changes'
+    heads = _git(repo, 'ls-remote', '--heads', remote)
+    if heads.returncode:
+        return None, f'cannot list the branches of remote {remote!r}: {heads.stderr.strip()[:200]}'
+    for line in heads.stdout.splitlines():
+        sha, ref = line.split()
+        if _git(repo, 'merge-base', '--is-ancestor', head, sha).returncode == 0:
+            return head, ref
+    return None, f'HEAD {head[:12]} is in no branch of remote {remote!r}; push it first'
 
 
 def ej_version():
@@ -145,6 +154,8 @@ def main():
     ap.add_argument('--w23-pt')
     ap.add_argument('--state-sha')
     ap.add_argument('--card', default=os.path.join(ROOT, 'docs', 'MODEL_CARD.md'))
+    ap.add_argument('--research-commit', required=True)
+    ap.add_argument('--remote', default='origin')
     a = ap.parse_args()
     out = os.path.realpath(a.out)
     if inside_git(out):
@@ -153,12 +164,16 @@ def main():
         sys.exit(f'hf_layout: {out} is not empty; refusing')
     if bool(a.from_safe) == bool(a.state_pt and a.w23_pt):
         sys.exit('hf_layout: give either --from-safe DIR or both --state-pt and --w23-pt')
+    commit, where = pushed_commit(ROOT, a.remote)
+    if commit is None:
+        sys.exit(f'hf_layout: code_commit not reachable: {where}; refusing (audit M-14)')
     os.makedirs(out, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=out) as tmp:
         prefixes = from_safe(a.from_safe) if a.from_safe else from_pickles(a.state_pt, a.w23_pt, a.state_sha, tmp)
         key, sk = place(*prefixes, out)
     weights = ['state.safetensors', 'state.json.gz', 'encoder/w23.safetensors', 'encoder/w23.json']
-    cfg = {'ej_version': ej_version(), 'format': 'rev-safe-v1', 'code_commit': git_commit(),
+    cfg = {'ej_version': ej_version(), 'format': 'rev-safe-v1', 'code_repo': 'https://github.com/codecraf8/ej-benchmark-releases',
+           'code_commit': commit, 'code_branch': where, 'research_commit': a.research_commit,
            'runtime_sha256': integrity.runtime_sha256(), 'runtime_source_commit': runtime_source(),
            'e5_model': loader.E5_MODEL, 'e5_revision': loader.E5_REVISION, 'state_key': key,
            'layout': {'state': 'state', 'encoder': 'encoder/w23'},

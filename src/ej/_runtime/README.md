@@ -15,5 +15,7 @@ of a few environment variables were replaced by neutral ones under `~/.cache`. A
   to continue when it detects that.
 - At prediction time ej sets `EDGE_CKPT`, `EDGE_CACHE` and `HF_HOME` before the first import, so the defaults in the code
   are not used.
-- Importing the runtime sets `torch.manual_seed(0)` and `torch.set_num_threads(2)` for the process.
-- Fit-time code paths (training, teachers, cross-fitting) are present but never run by ej.
+- Importing the runtime sets `torch.manual_seed(0)` and `torch.set_num_threads(2)`; `ej.load()` restores the process's
+  thread count and RNG state right after that import, and `Model.predict` sets threads only inside the call (`ej.scope`).
+- Fit-time code paths (training, teachers, cross-fitting) are present but never run by ej; after `ej.load()` each
+  module's `torch.load` / `pickle.load` refuses, so none of them can unpickle a file (`ej.scope.forbid_unpickling`).

@@ -1,7 +1,7 @@
-"""ej quickstart: load the weights (Hugging Face repo id or local directory) and predict one record.
+"""ej quickstart: load the weights (a local directory, or a Hugging Face repo id once published) and predict one record.
 
-  python examples/quickstart.py                         # weights from Hugging Face (5ak3t/ej @ v1.0.0)
-  python examples/quickstart.py --weights ./ej-weights  # a local weights directory (scripts/hf_layout.py layout)"""
+  python examples/quickstart.py --weights ./ej-weights  # a local weights directory (scripts/hf_layout.py layout)
+The Hugging Face weights are not public yet (README "Status"), so --weights is required."""
 import argparse
 import json
 
@@ -11,8 +11,8 @@ import ej
 def main():
     """Load, predict ej.EXAMPLE_RECORD, print each question's distribution."""
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--weights', default='5ak3t/ej', help='Hugging Face repo id or local weights directory')
-    ap.add_argument('--revision', default='v1.0.0', help='Hugging Face revision (tag or commit)')
+    ap.add_argument('--weights', required=True, help='local weights directory (or a Hugging Face repo id you can access)')
+    ap.add_argument('--revision', help='Hugging Face revision (tag or commit) when --weights is a repo id')
     ap.add_argument('--records', help='optional JSONL file of records; prints one JSON line per record')
     a = ap.parse_args()
     model = ej.load(a.weights, revision=a.revision)

@@ -1,21 +1,21 @@
-# ej 1.0.0: data card (training pool)
+# ej data card (training pool v2b for v1.1.0; pool v2 of the withdrawn v1.0.0)
 
-ej 1.0.0 was fitted once on training pool **v2**. Counts come from counting records per source and workflow in the pool
-file; no evaluation record was read.
+ej 1.1.0 is fitted on training pool **v2b**. v2b is pool v2 (used by the withdrawn v1.0.0) without the Amazon
+counterfactual source, whose upstream licence is CC BY-NC 4.0 (§5). Counts come from counting records per source and
+workflow in the pool file; no evaluation record was read.
 
 ## 1. Summary
 
-| Item | Pool v2 |
-|---|---|
-| sha256 of `train/pool.jsonl` | `35b11986cdcdda04d3a8dfb430c321a74096b21218eb647cf33470a0897ef67d` |
-| Records / questions | 12,719 / 17,223 |
-| Source groups (held-out units) | 8 |
-| Language | English |
+| Item | Pool v2b (v1.1.0) | Pool v2 (v1.0.0, withdrawn) |
+|---|---|---|
+| sha256 of `train/pool.jsonl` | `ce1c1a6fecfd62a90317f6efc4f90fd5f9261becb7081fd00235a6f4d5ee9dbe` | `35b11986cdcdda04d3a8dfb430c321a74096b21218eb647cf33470a0897ef67d` |
+| Records / questions | 9,719 / 14,223 | 12,719 / 17,223 |
+| Source groups (held-out units) | 7 | 8 |
+| Language | English | English |
 
 The pool is **not distributed** (it contains the in-house ticket corpus, §6); the release pins its sha256 only.
 
-## 2. Composition
-
+## 2. Composition (v2b)
 
 | Source | Group(s) | Records | Questions | choice | noul | score | Licence |
 |---|---|---|---|---|---|---|---|
@@ -27,8 +27,9 @@ The pool is **not distributed** (it contains the in-house ticket corpus, §6); t
 | Banking77 | banking77 | 3,000 | 3,000 | 3,000 | | | CC BY 4.0 (PolyAI/banking77; mirror mteb/banking77) |
 | CLINC150 | clinc150 | 3,000 | 3,000 | 3,000 | | | CC BY 3.0 (clinc/clinc_oos, config plus) |
 | GoEmotions | goemotions | 2,203 | 2,203 | 2,203 | | | Apache-2.0 (google-research-datasets/go_emotions, simplified) |
-| Amazon counterfactual | counterfactual | 3,000 | 3,000 | | 3,000 | | CC BY 4.0 (mteb/amazon_counterfactual, en) |
-| **Total v2** | 8 groups | **12,719** | **17,223** | 10,209 | 4,762 | 2,252 | |
+| **Total v2b** | 7 groups | **9,719** | **14,223** | 10,209 | 1,762 | 2,252 | |
+
+Pool v2 had in addition: Amazon counterfactual, group `counterfactual`, 3,000 records / 3,000 noul questions.
 
 ## 3. Construction
 
@@ -43,39 +44,48 @@ the record id.
 - **Banking77, CLINC150, GoEmotions** → choice questions over the gold label plus distractors (2-8 options) drawn
   **leak-free** (§4); CLINC150 out-of-scope is the ordinary label "none of these"; GoEmotions single-label rows, balanced to a
   maximum gold share of .11. At most 3,000 records per public source.
-- **Amazon counterfactual** → one noul question per text, fixed yes/no options.
+- (v2 only) **Amazon counterfactual** → one noul question per text, fixed yes/no options.
 
 ## 4. Leak-free candidate sampling
 
 **Problem.** If distractors are drawn uniformly from the other labels, how often an option text appears across items
-reveals the gold label: on a non-leak-free MASSIVE suite an option-count rule reached accuracy .631 against chance .240
-without reading any text.
+reveals the gold label: on a non-leak-free MASSIVE suite an option-count rule reached micro accuracy .631 against chance
+.240 without reading any text.
 **Construction.** A suite is leak-free iff `P(gold = j | S) = 1/|S|` for every `j` in the option set `S`: distractors by
 **conditional Poisson sampling** with IPF-fitted weights, seeded hash order of records, over-represented labels dropped.
-**Applied to** the Banking77 / CLINC150 / GoEmotions training parts and the MASSIVE evaluation suite.
+**Applied to** the Banking77 / CLINC150 / GoEmotions training parts and the MASSIVE evaluation suite. Builder:
+`benchmark/suites/leakfree.py`.
 
 ## 5. What is not in the pool
 
 | Data | Status |
 |---|---|
-| Typed Decisions workflow `security_incidents` | held out (zero-shot suite `zs_td`); security topics also filtered from new parts |
-| MASSIVE (en) intents | evaluation only |
-| SGD (CC BY-SA 4.0), Super-NaturalInstructions permissive subset, ABCD (MIT) | built and tested; every pool with them was worse on the development suites, so discarded |
-| Non-commercial data and models trained on it | excluded |
+| Typed Decisions workflow `security_incidents` | held out (suite `zs_td`); security topics also filtered from new parts |
+| MASSIVE (en) intents | evaluation only (about 22% of its intent names overlap CLINC150 / Banking77 option texts) |
+| zs_wide workflows (SNI tasks, SGD services, ABCD, GLM-synthetic) | evaluation only; SGD (CC BY-SA 4.0), Super-NaturalInstructions permissive subset and ABCD (MIT) pools were also tested for training and discarded (worse on the development suites) |
+| Amazon counterfactual | removed in v2b: the upstream `amazon-research/amazon-multilingual-counterfactual-dataset` LICENSE is CC BY-NC 4.0 (the `mteb/amazon_counterfactual` mirror declared CC BY 4.0); it was in the v1.0.0 pool, which is why v1.0.0 was withdrawn |
+| Other non-commercial data and models trained on it | excluded |
+
+Licences are checked against the upstream LICENSE file of each source, not a mirror's metadata.
 
 ## 6. Disclosures
 
 **Claude Haiku.** The support-ticket corpus (1,200 tickets written by Claude Haiku,
 `claude-haiku-4-5-20251001`, Anthropic; labels by construction, no human review) contributes 780 tickets to the training
-pool. The corpus itself is **not released**. Consequence: the pool cannot be rebuilt from public data alone.
-**Training-time derivatives.** All derived signals come from pool texts only: NLI teacher labels on an augmented transfer
-set of pool pairs, out-of-fold decision-encoder distributions, the trimmed encoder vocabulary (built from pool v2), and a
-fidelity slice of 1,293 pool texts for the encoder's quantisation-aware distillation. Remote GPU jobs received only pool
+pool. The corpus itself is **not released**. Consequence: the pool cannot be rebuilt from public data alone. Whether the
+provider terms allow training openly released weights on these outputs is an open question (`NOTICE`, Q1).
+**GLM-synthetic evaluation workflows.** 43 zs_wide development workflows were generated with GLM (`glm-4.7`) and labelled
+by the same model (blind self-consistency filter only; no independent annotation). They are evaluation data, never
+training data, and are reported separately from the real-source workflows.
+**Training-time derivatives.** All derived signals come from pool texts only: out-of-fold decision-encoder distributions,
+the trimmed encoder vocabulary, and a fidelity slice of pool texts for the encoder's quantisation-aware distillation
+(v1.0.0 additionally: NLI teacher labels on an augmented transfer set of pool pairs). Remote GPU jobs received only pool
 data and pool-derived caches.
 
 ## 7. Known data limitations
 
 - Only 3 Typed Decisions training workflows.
 - The tickets are synthetic, from one model family, English; labels are the generation spec, not human annotation.
-- Typed Decisions gold distributions come from the dataset's own teacher; which model produced them is not recorded.
+- Typed Decisions gold distributions come from the dataset's own teacher; which model produced them is not recorded
+  (`NOTICE`, Q2).
 - Intent sources have one question per text with 2-8 options; deployments may offer many more options than seen in training.

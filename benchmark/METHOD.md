@@ -39,8 +39,9 @@ excludes it; adjacent = same domain written by others; unknown = the card does n
 | cross-encoder/nli-deberta-v3-xsmall @a150876 | Apache-2.0 | 22M + embeddings | SNLI + MultiNLI | zero-shot | zero-shot | zero-shot | zero-shot |
 
 ej itself: trained on the Typed Decisions train split of three workflows (td in-domain), never on `security_incidents`
-(zs_td zero-shot), never on MASSIVE (zs_massive zero-shot), and on the training split of the private ticket corpus
-(tickets in-domain, tickets_ood out of distribution). The NLI cross-encoder above is a fit-time teacher of ej (distilled
+(zs_td: not trained on, but its development records were used for model selection), never on MASSIVE (zs_massive:
+not trained on; about 22% of its intent names overlap CLINC150 / Banking77 options in the pool), and on the training split
+of the private ticket corpus (tickets in-domain, tickets_ood a writing-style shift). The NLI cross-encoder above is a fit-time teacher of ej (distilled
 into one of its heads), so it is not an independent comparison.
 
 ## 3. Which rival is fair on which suite
@@ -48,7 +49,7 @@ into one of its heads), so it is not an independent comparison.
 | suite | like-for-like | report with a flag | why |
 |---|---|---|---|
 | td | laya (same-split specialist, as ej); Julia-1 likely | kev, OpenThai, GLiClass (zero-shot generalists: ej has the in-domain advantage); Jev likely seen | head-to-head on the Typed Decisions test split |
-| zs_td | kev, GLiClass, NLI baselines (zero-shot like ej); OpenThai adjacent | **laya, Julia-1, Jev** (trained on or likely saw this workflow) | a zero-shot claim cannot be tested against rivals that saw the workflow |
+| zs_td | kev, GLiClass, NLI baselines (zero-shot; ej was not trained on it but was selected on it); OpenThai adjacent | **laya, Julia-1, Jev** (trained on or likely saw this workflow) | a zero-shot claim cannot be tested against rivals that saw the workflow |
 | zs_massive | kev, GLiClass, large NLI models (zero-shot by card) | **OpenThai** in-domain; Julia-1 adjacent; laya, Jev unknown | only zero-shot rivals support a zero-shot claim |
 | tickets, tickets_ood | all rivals are zero-shot; ej is in-domain on tickets, out of distribution on tickets_ood | rivals trained on other support-ticket data (adjacent) | tickets_ood is the fairer of the two |
 
@@ -61,8 +62,11 @@ into one of its heads), so it is not an independent comparison.
 - A rival's own 4-decimal output rounding is switched off where it is a plain `round(x, 4)` (laya, decider, Von), so
   full-precision probabilities are scored. Each rival is otherwise run with its documented inference and its own
   calibration (temperatures as shipped).
-- Hugging Face models are loaded in float32. torch threads = `BENCH_THREADS` (default 1).
-- **ej** (`rivals/ej_adapter.py`): `ej.load(EJ_WEIGHTS, revision=EJ_REVISION).predict(...)`.
+- Hugging Face models are loaded in float32. torch threads = `BENCH_THREADS` (default 1); `run_bench.py` records the
+  threads observed inside the timed calls (`threads_measured`, `threads_ok`).
+- **ej** (`rivals/ej_adapter.py`): `ej.load(EJ_WEIGHTS, revision=EJ_REVISION, threads=BENCH_THREADS).predict(...)`; ej
+  sets the thread count inside each predict call and reports it (`Model.last_threads`). `EJ_WEIGHTS` is required (the
+  Hugging Face weights are not public yet). `EDGE_COLD=1` measures ej without its prediction-time caches.
 - **Julia-1**: llama.cpp `llama-server` at commit b9acf138a1e28ce1fc23b5a4fc4b12444b50f7ea built CPU-only (`LLAMA_SERVER`
   = path of the binary); the adapter starts the server on the BF16 GGUF (`JULIA_GGUF=q8_0` for the smaller build) and
   stops it at exit. The GGUF path was not compared with Julia's own PyTorch runtime.
@@ -83,6 +87,7 @@ into one of its heads), so it is not an independent comparison.
 
 ```bash
 pip install -e .                       # ej; rivals need their own environments (rivals/__init__.py, column 3)
+export EJ_WEIGHTS=/path/to/ej-weights  # a local ej weights directory
 export BENCH_FINAL_DIR=/path/to/sealed-suites   # suites under this directory refuse to run without --final
 python benchmark/run_bench.py my_suite.jsonl ej gliclass-edge --out bench-out
 python benchmark/run_bench.py $BENCH_FINAL_DIR/td.jsonl ej --final --out bench-out    # once per release
@@ -95,6 +100,12 @@ when the suite is private) and `<suite>.<model>.summary.json` (aggregates; what 
 
 1. Calibration: rivals are scored as shipped (their own temperatures); no per-rival temperature refit.
 2. Von yes/no is scored as its calibrated posterior (`VON_NOUL_DECISION=raw`), not its default banded decision output.
-3. Latency is single-thread, wall clock, sometimes on a busy machine: upper bounds. Jev latency is a network round trip.
+3. Latency: one protocol for every model (one record per call after a warm-up record, wall clock, 1 thread checked
+   inside the timed calls, box and load average recorded). Latencies are compared only when measured on the same suite,
+   box and day; otherwise they are reported as **not comparable**. The run-2 rival latencies (final td, 2026-10-07,
+   load not recorded) are not comparable with ej's re-measured numbers. Jev latency is a network round trip.
 4. Julia-1 on td / zs_td is flagged likely in-domain from its validation-set names (training data undisclosed).
-5. Jev is scored as served: 2-decimal probabilities plus EPS smoothing, one non-deterministic draw frozen by the cache.
+5. Jev is scored as served: 2-decimal probabilities plus EPS smoothing, one non-deterministic draw frozen by the cache
+   (no draw-to-draw spread was measured, so differences of a few points against Jev are not claims).
+6. No CI was computed for the run-2 cells; from v1.1.0 every cell carries a record-cluster CI and every ej-vs-rival
+   difference a paired CI, and an ordering is stated only where that CI excludes 0.
