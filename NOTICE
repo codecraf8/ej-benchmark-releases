@@ -1,0 +1,30 @@
+ej
+Copyright 2026 The ej contributors.
+
+Code (this repository: src/, examples/, tests/, scripts/, benchmark/) is licensed under the Apache License, Version 2.0
+(see LICENSE). The model weights (distributed separately on Hugging Face, https://huggingface.co/5ak3t/ej) are licensed under CC BY-SA 4.0
+(https://creativecommons.org/licenses/by-sa/4.0/; full text in LICENSES/CC-BY-SA-4.0.txt).
+
+ej model weights 1.0.0
+----------------------
+This model is a modified version of intfloat/e5-small-v2 (MIT License; Wang et al., arXiv:2212.03533; revision
+ffb93f3bd4047442299a41ebb6fa998a38507c52): vocabulary trimmed, weights quantised to 2/3 bits and re-trained by
+distillation. MIT licence text: LICENSES/MIT-e5-small-v2.txt. The upstream repository declares
+"license: mit" in its model card metadata but ships no LICENSE file, so the copyright line there names the authors of
+intfloat/e5-small-v2.
+
+Trained on: Typed Decisions (Apache-2.0); Banking77 (CC BY 4.0); CLINC150 (CC BY 3.0); GoEmotions (Apache-2.0);
+Amazon counterfactual (CC BY 4.0); an in-house support-ticket corpus written with Claude Haiku (Anthropic), not
+released.
+Datasets were converted to typed questions and re-sampled (modified). Distillation signal from
+cross-encoder/nli-deberta-v3-xsmall (Apache-2.0), trained on SNLI (CC BY-SA 4.0) and MultiNLI.
+No teacher weights are included.
+
+Adaptations of the weights must be shared under CC BY-SA 4.0 or a compatible licence, with attribution.
+
+Benchmark adapters
+------------------
+benchmark/rivals/ calls third-party models through their own packages, servers or APIs; no third-party source code is
+copied into this repository. Those models keep their own licences and terms (benchmark/METHOD.md).
+
+"Jev" and "System One" are names used by TypeSafe.ai; ej is not affiliated with or endorsed by TypeSafe.ai.
