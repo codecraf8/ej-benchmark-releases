@@ -91,6 +91,37 @@ This is a made-up workflow the model never saw, and the distributions are corres
 `model.predict(records)` returns one dict per record, `{qid: [p_1, ..., p_K]}`, each list in the order of that
 question's `options`, plain Python floats in [0, 1] summing to 1 (within 1e-9).
 
+## Adapting to your workflow
+
+A zero-shot model cannot know how often each answer occurs in your workflow. `model.adapt` learns one logit offset per
+(question id, option key) from that workflow's own records and returns a model that predicts the same way (no fine-tuning,
+a fit of a few milliseconds plus one prediction pass over the records you give it). Use one adapted model per workflow.
+
+```python
+labelled = [{**r, 'answers': {'route': 'returns', 'needs_human': 'true', 'urgency': '2'}} for r in my_records[:8]]
+adapted = model.adapt(examples=labelled)      # a few labelled records: the option tilt
+probs = adapted.predict(new_records)
+
+adapted = model.adapt(unlabeled=past_requests)                   # EXPERIMENTAL: no labels at all
+probs = adapted.predict(todays_requests, observe=True)           # keeps learning from traffic, stores no request
+```
+
+`model.adapt()` with neither argument returns the model itself (identical predictions). Answers are given by option key
+(`'answers': {qid: key}`), or by option index in the benchmark format (`'gold': {qid: {'label': i}}`). Measured on our
+dev suites (group-macro accuracy, sources weighted equally; paired bootstrap 95% CIs; 8 labelled records per workflow):
+
+| setting | 154 unseen workflows (public sources) | 1 unseen workflow (`zs_td` dev) | 3 seen workflows (`td` dev) |
+|---|---|---|---|
+| 8 labelled examples vs zero-shot | .341 → .397, +.056 [+.034, +.080] | .465 → .532, +.067 [+.052, +.083] | +.011 [+.004, +.018] |
+| 16 labelled examples vs zero-shot | (workflows have ≤ 12 records) | .465 → .548, +.083 [+.065, +.101] | +.010 [+.001, +.020] |
+| unlabelled only vs zero-shot (experimental) | .364 → .378, +.014 [+.003, +.027] | +.005 [−.005, +.015] | +.012 [−.004, +.030] |
+| 8 labelled + unlabelled vs 8 labelled (experimental) | −.001 [−.020, +.013] | +.011 [+.006, +.016] | −.003 [−.009, +.003] |
+
+Labelled examples also lower the log loss (unseen workflows: −.072 NLL at 8 examples, −.153 on `zs_td` at 16). The
+label-free path is **experimental**: its gain on unseen workflows is small (below +.02), and on seen workflows it is not
+significant. Fit time on one CPU thread: 15 ms (16 labelled records), 19 ms (100 unlabelled), 29 ms (both); an `observe`
+batch of 10 records adds about 5 ms on top of its prediction pass, which `predict(..., observe=True)` reuses.
+
 ## Weights, integrity and caches
 
 The weights directory (Hugging Face repo, or `scripts/hf_layout.py` output) holds `config.json`, `state.safetensors`,
@@ -133,7 +164,7 @@ Details: [benchmark/README.md](benchmark/README.md), [benchmark/METHOD.md](bench
 ## Limitations
 
 - **Unseen workflows: low accuracy** (zs_td .490). Measure on your own labelled cases before automating; differences of
-  about .05 on that suite are within fit-to-fit variation.
+  about .05 on that suite are within fit-to-fit variation. A few labelled records help (`model.adapt`, above).
 - **English only.** **Python runtime only** (torch + transformers, CPU); no mobile/native runtime in v1.
 - **Synthetic in-domain data**: the support tickets were written by Claude Haiku (no human labels).
 - The base model is downloaded from the Hugging Face Hub on first use.
@@ -146,7 +177,7 @@ Details: [benchmark/README.md](benchmark/README.md), [benchmark/METHOD.md](bench
 
 | path | what |
 |---|---|
-| `src/ej/` | the package: `load`, `Model.predict`, records, loader, integrity checks, pickle-free codec |
+| `src/ej/` | the package: `load`, `Model.predict`, `Model.adapt` (`adapt.py`, `adapt_math.py`), records, loader, integrity checks, pickle-free codec |
 | `src/ej/_runtime/` | the prediction code: research modules (code unchanged, comments cleaned), sha256-pinned ([README](src/ej/_runtime/README.md)) |
 | `examples/quickstart.py`, `tests/` | example; tests (`pytest`; set `EJ_WEIGHTS_DIR` to run the prediction tests) |
 | `scripts/hf_layout.py` | builds the Hugging Face upload directory from weight files (never uploads) |

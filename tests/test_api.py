@@ -16,7 +16,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def test_public_api():
-    assert ej.__version__ == '1.0.0'
+    assert ej.__version__ == '1.1.0.dev0'
     assert callable(ej.load) and hasattr(ej.Model, 'predict')
     assert ej.validate_records([ej.EXAMPLE_RECORD]) == [ej.EXAMPLE_RECORD]
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0.dev0 (unreleased)
+
+- `Model.adapt(examples=None, unlabeled=None)` returns an `ej.AdaptedModel` for one workflow: a per-(question id, option
+  key) logit offset fitted on the workflow's labelled records (option tilt), with no change to the weights or the runtime.
+- Experimental: the same offsets from unlabelled records (shrunk batch calibration with a bias-share prior), alone or with
+  labelled records; `AdaptedModel.observe(batch)` / `predict(batch, observe=True)` update it from running moments.
+- `model.adapt()` without inputs returns the model itself.
+
 ## 1.0.0 (2026-10-08)
 
 First public release.

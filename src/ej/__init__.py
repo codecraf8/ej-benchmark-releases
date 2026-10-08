@@ -6,13 +6,15 @@ probability distribution per question, without generating tokens.
     import ej
     model = ej.load('5ak3t/ej', revision='v1.0.0')   # or a local weights directory
     (probs,) = model.predict([ej.EXAMPLE_RECORD])          # {qid: [p for each option, in option order]}
+    adapted = model.adapt(examples=labelled_records)        # optional: adapt to one workflow (ej.adapt)
 
 The prediction code is the research runtime in ej/_runtime (code unchanged, comments cleaned), imported by bare module name
 from a sys.path entry that ej adds on load; do not shadow those names with modules of your own."""
+from .adapt import AdaptedModel
 from .records import EXAMPLE_RECORD, NOUL_OPTIONS, RecordError, validate_record, validate_records
 
-__version__ = '1.0.0'
-__all__ = ['load', 'Model', 'EXAMPLE_RECORD', 'NOUL_OPTIONS', 'RecordError', 'validate_record', 'validate_records',
+__version__ = '1.1.0.dev0'
+__all__ = ['load', 'Model', 'AdaptedModel', 'EXAMPLE_RECORD', 'NOUL_OPTIONS', 'RecordError', 'validate_record', 'validate_records',
            '__version__']
 
 
@@ -32,6 +34,13 @@ class Model:
             return []
         out = student.predict(self._state, records)
         return [{qid: [float(p) for p in ps] for qid, ps in d.items()} for d in out]
+
+    def adapt(self, examples=None, unlabeled=None, config=None):
+        """An AdaptedModel for ONE workflow (ej.adapt): `examples` = its records with 'answers': {qid: option key} (option tilt);
+        `unlabeled` = its records without answers (EXPERIMENTAL label-free correction). Neither -> this model itself."""
+        if not examples and not unlabeled:
+            return self
+        return AdaptedModel(self, examples, unlabeled, config)
 
     def __repr__(self):
         return f"ej.Model(state={str(self.config.get('state_key'))[:16]}, weights_dir={self.weights_dir!r})"
