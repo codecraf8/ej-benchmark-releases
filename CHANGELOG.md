@@ -1,9 +1,16 @@
 # Changelog
 
-## 1.1.0.dev0 (unreleased)
+## 1.0.1 (2026-10-08): licence fix of the withdrawn v1.0.0; same architecture
 
-Weights: v1.1.0 is fitted on the licence-clean pool v2b and pending its pre-registered evaluation; nothing is published
-yet (the Hugging Face repository is private).
+Weights: **v1.0.1** = the v1.0.0 model code (same architecture, same runtime modules: `RUNTIME_SHA256` unchanged) refitted
+on the licence-clean pool v2b, with the low-bit encoder re-distilled on pool v2b texts (state `3b3e66d28fb423f9`, encoder
+`lowbit-b3b010513f948ceb`). It is a licence fix, not a model improvement: the final suites were scored once for it
+(`benchmark/results/run3/RUN3.md`). It is packaged as a **private** Hugging Face revision (tag `v1.0.1`); publication is
+pending the maintainer's decision. A later round of model changes failed its pre-registered evaluation and is not
+released.
+
+- `ej.integrity.KNOWN_RELEASES` / `RELEASE_PROVENANCE` list v1.0.1; `scripts/maintainer_pickle.py` checks the encoder's
+  sha256 by checkpoint directory (both encoders listed).
 
 - **v1.0.0 withdrawn** before publication: its training pool contained Amazon counterfactual data, licensed CC BY-NC 4.0
   upstream (the mirror used declared CC BY 4.0). README, model card, data card and NOTICE say so; NOTICE lists creator,

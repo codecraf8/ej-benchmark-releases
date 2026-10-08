@@ -5,7 +5,7 @@ Code (this repository: src/, examples/, tests/, scripts/, benchmark/) is license
 (see LICENSE). The model weights (not yet public; to be distributed separately on Hugging Face, https://huggingface.co/5ak3t/ej)
 are licensed under CC BY-SA 4.0 (https://creativecommons.org/licenses/by-sa/4.0/; full text in LICENSES/CC-BY-SA-4.0.txt).
 
-ej model weights 1.1.0
+ej model weights 1.0.1
 ----------------------
 This model is a modified version of intfloat/e5-small-v2 (MIT License; Wang et al., arXiv:2212.03533; revision
 ffb93f3bd4047442299a41ebb6fa998a38507c52): vocabulary trimmed, weights quantised to 2/3 bits and re-trained by
@@ -27,7 +27,11 @@ Training data (pool v2b). Every dataset below was converted to typed questions a
   Licence: Apache-2.0, https://www.apache.org/licenses/LICENSE-2.0. Modified: yes (single-label rows, balanced, choice
   questions).
 - In-house support-ticket corpus written with Claude Haiku (Anthropic, claude-haiku-4-5-20251001); not released.
-Distillation signal: a decision encoder fine-tuned on the same pool (fit time only). No teacher weights are included.
+Distillation signals (fit time only; no teacher weights are included): a decision encoder fine-tuned on the same pool,
+and the NLI cross-encoder cross-encoder/nli-deberta-v3-xsmall (Apache-2.0; Creator: the sentence-transformers project,
+Hugging Face organisation "cross-encoder"; Link: https://huggingface.co/cross-encoder/nli-deberta-v3-xsmall; trained on
+SNLI (CC BY-SA 4.0) and MultiNLI), whose logits on pool texts are distilled into a small pair head on the shared encoder
+(v1.0.1 keeps the v1.0.0 architecture).
 
 Withdrawn v1.0.0 weights (never published)
 ------------------------------------------
@@ -35,9 +39,9 @@ v1.0.0 was additionally trained on 3,000 records of Amazon counterfactual (CC BY
 Research, O'Neill et al., 2021, "I Wish I Would Have Loved This One, But I Didn't"; Link:
 https://github.com/amazon-research/amazon-multilingual-counterfactual-dataset). Its upstream LICENSE is CC BY-NC 4.0
 (https://creativecommons.org/licenses/by-nc/4.0/; the mteb/amazon_counterfactual mirror declared CC BY 4.0). Non-commercial
-terms are incompatible with releasing weights under CC BY-SA 4.0, so v1.0.0 was withdrawn and v1.1.0 does not use that
-dataset. v1.0.0 also distilled cross-encoder/nli-deberta-v3-xsmall (Apache-2.0), trained on SNLI (CC BY-SA 4.0) and
-MultiNLI.
+terms are incompatible with releasing weights under CC BY-SA 4.0, so v1.0.0 was withdrawn. v1.0.1 does not use that
+dataset: its heads are fitted on pool v2b and its low-bit encoder was re-distilled on pool v2b texts only (the v1.0.0
+encoder had also been distilled on texts of the counterfactual records).
 
 Evaluation data (benchmark suites; not training data)
 -----------------------------------------------------
@@ -53,7 +57,7 @@ Q1  Claude Haiku outputs (780 training records): whether the provider terms that
 Q2  Typed Decisions gold distributions: which model produced the dataset's teacher distributions used as gold
     probabilities, and whether its output terms impose conditions, is not recorded.
 Q3  MultiNLI licence split (which genres are CC BY-SA 3.0 and which OANC terms) and whether distillation counts as an
-    adaptation; relevant to the withdrawn v1.0.0 only (v1.1.0 ships no NLI-distilled head).
+    adaptation; relevant to v1.0.1 (its NLI pair head is distilled from a cross-encoder trained on MultiNLI).
 Q4  GoEmotions source texts are Reddit comments: the dataset is Apache-2.0, but the platform terms for the comment texts
     were not reviewed.
 

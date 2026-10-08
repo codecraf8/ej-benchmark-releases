@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Recompute a release's state key from its research code tree and training pool (audit M-14: provenance).
 
-usage: python scripts/state_key.py CODE_DIR POOL_JSONL [--expect KEY_OR_PREFIX]
+usage: python scripts/state_key.py CODE_DIR POOL_JSONL [--expect KEY_OR_PREFIX] [--ck-dir lowbit-<id>]
        python scripts/state_key.py --git REPO COMMIT POOL_JSONL [--expect ...]   (reads REPO's edge/ at COMMIT via git)
+--ck-dir: set student_lb.py's encoder switch `CK_DIR = '...'` to this directory first (exactly one such line must exist):
+the one substitution the v1.0.1 fit tree made (f46cf7c code, licence-clean encoder lowbit-b3b010513f948ceb).
 The key (research edge/student_state.state_key) = sha256 over VERSION + NUL, then for every edge/student*.py and
 edge/train_*.py file sorted by basename: basename + NUL + sha256(bytes), then 'pool' + NUL + the pool file's bytes. VERSION
 is read from that tree's student_state.py. Exit status 1 when --expect is given and does not match the key's prefix.
-For v1.0.0 (state 14a3e64fb5675f19): codecraf8/rev commit f46cf7c (branch edge-master) + the v2 pool (sha256 35b11986...)."""
+For v1.0.0 (state 14a3e64fb5675f19): codecraf8/rev commit f46cf7c (branch edge-master) + the v2 pool (sha256 35b11986...).
+For v1.0.1 (state 3b3e66d28fb423f9): the same commit f46cf7c with --ck-dir lowbit-b3b010513f948ceb + pool v2b (ce1c1a6f...)."""
 import argparse
 import hashlib
 import re
@@ -27,6 +30,15 @@ def key_from_files(files, pool_bytes_iter):
     for b in pool_bytes_iter:
         h.update(b)
     return h.hexdigest()
+
+
+def set_ck_dir(files, ck_dir):
+    """files with student_lb.py's `CK_DIR = '<dir>'` line pointed at ck_dir (ValueError unless exactly one such line)."""
+    src = files['student_lb.py'].decode()
+    lines = re.findall(r"^CK_DIR = '([^']+)'", src, re.M)
+    if len(lines) != 1:
+        raise ValueError(f'student_lb.py: {len(lines)} CK_DIR lines, expected 1')
+    return {**files, 'student_lb.py': src.replace(f"CK_DIR = '{lines[0]}'", f"CK_DIR = '{ck_dir}'", 1).encode()}
 
 
 def files_from_dir(code_dir):
@@ -53,6 +65,7 @@ def main(argv=None):
     ap.add_argument('args', nargs='+')
     ap.add_argument('--git', action='store_true')
     ap.add_argument('--expect')
+    ap.add_argument('--ck-dir')
     a = ap.parse_args(argv)
     if a.git:
         repo, commit, pool = a.args
@@ -60,6 +73,8 @@ def main(argv=None):
     else:
         code_dir, pool = a.args
         files = files_from_dir(code_dir)
+    if a.ck_dir:
+        files = set_ck_dir(files, a.ck_dir)
     key = key_from_files(files, pool_chunks(pool))
     print(key)
     if a.expect and not key.startswith(a.expect):

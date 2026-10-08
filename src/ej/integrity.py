@@ -19,6 +19,12 @@ KNOWN_RELEASES = {
         'encoder/w23.safetensors': '9e996615fb374cd39af6507f2d88c8cd6fa46ef87b09ed946a2605a083c326ed',
         'encoder/w23.json': '66ef3ad38574ee50efad18e723a8135e9709b96dd1d53b42e0b3a717e1f2316f',
     },
+    '3b3e66d28fb423f9': {  # v1.0.1: licence fix of the withdrawn v1.0.0 (pool v2b, encoder lowbit-b3b010513f948ceb)
+        'state.safetensors': '543e00893159fa3c5128e1c02c9d9070e19c091cfcd01dddcb037b5f5feb3bea',
+        'state.json': 'f2dd3a3fad2d0cce525f03bd37ef4e8c5aa1f4d64a5f89c03e9a4f15f0c4bfcf',
+        'encoder/w23.safetensors': '99272d36fdcb57423df09ea38b03b2676787dfe738661b4808a592d9c615a3a4',
+        'encoder/w23.json': '779151bc2e2a2daf15b0ec495e1dd04bb2aa773932bbfb13a577360cd928d829',
+    },
 }
 # Where each known release's code lives (audit M-14): the research tree whose student*/train_* files and pool reproduce the
 # state key (scripts/state_key.py), and the public commit holding the runtime the weights were packaged with.

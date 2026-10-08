@@ -2,7 +2,7 @@
 
 **Withdrawn.** ej 1.0.0 was never published: its training pool contained Amazon counterfactual data, licensed CC BY-NC 4.0
 upstream (`NOTICE`). This page keeps its run-2 numbers for the record, with the corrections of the round-20 audit below.
-The v1.1.0 table replaces it when the v1.1.0 evaluation has run ({{V110_BENCH_TABLE}}).
+The v1.0.1 table (run 3, [../run3/RUN3.md](../run3/RUN3.md)) replaces it.
 
 ej 1.0.0 was scored once on the final test suites with `benchmark/scoring.py`. The suites are unchanged since the rivals
 were run (2026-10-07, `benchmark/run_bench.py <suite> <model> --final`, one model process at a time on a local CPU), so

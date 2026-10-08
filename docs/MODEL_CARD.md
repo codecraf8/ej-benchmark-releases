@@ -1,17 +1,18 @@
-# ej model card (v1.1.0 pending; v1.0.0 withdrawn)
+# ej model card (v1.0.1; v1.0.0 withdrawn)
 
 > **The weights are not yet public.** v1.0.0 (state `14a3e64f...`) was **withdrawn before publication**: its training
 > pool contained 3,000 Amazon counterfactual records, whose upstream licence is CC BY-NC 4.0, incompatible with the CC
-> BY-SA 4.0 weights licence. v1.1.0 is fitted on the licence-clean pool v2b and is pending its pre-registered evaluation
-> (seed-aware keep rule with a zs_wide guard, decided before any fit). `V110_*` placeholder fields are filled from that run.
+> BY-SA 4.0 weights licence. **v1.0.1 is the licence fix of the withdrawn v1.0.0; same architecture**: the same code
+> refitted on the licence-clean pool v2b, with the low-bit encoder re-distilled on v2b texts only. It is not a model
+> improvement. It is packaged as a private Hugging Face revision (tag `v1.0.1`); publication is the maintainer's decision.
 
 | Field | Value |
 |---|---|
-| Model | ej 1.1.0 ({{V110_RELEASE_DATE}}); release decision: {{V110_RELEASE_DECISION}} |
-| State key | `{{V110_STATE_KEY}}` (recorded in `config.json`; recomputed from `research_commit` + pool by `scripts/state_key.py`) |
-| Code | runtime: this repository at `{{V110_CODE_COMMIT}}`; research tree: `{{V110_RESEARCH_COMMIT}}` |
-| Size | counted {{V110_SIZE_COUNTED_MIB}} MiB (bit-level bound: encoder codes + vocabulary + int8 heads; no file is stored that way); on disk {{V110_SIZE_ONDISK_MB}} MB (weights directory); download {{V110_SIZE_DOWNLOAD_MB}} MB (weights + the base-model files a first load fetches); resident {{V110_SIZE_RESIDENT_MB}} MB (tensors held while predicting) |
-| Latency (CPU, Python reference, 1 thread, one record per call) | {{V110_LATENCY}} (protocol and box: README "Latency") |
+| Model | ej 1.0.1 (2026-10-08); release decision: licence fix of v1.0.0 (same code, licence-clean pool and encoder); the default fit seed, fixed before fitting, not a selected seed |
+| State key | `3b3e66d28fb423f98b734bd0c1d324cdc92bb8e10eda0e7ddf9a8e54de3f3fe2` (recorded in `config.json`; reproduced by `scripts/state_key.py --git <research repo> f46cf7c <pool v2b> --ck-dir lowbit-b3b010513f948ceb`) |
+| Code | runtime: this repository at the commit named in `config.json` `code_commit` (also in `ej.integrity.RELEASE_PROVENANCE`; runtime modules identical to v1.0.0's); research tree: model code `f46cf7c` with the encoder switch set to `lowbit-b3b010513f948ceb`, research head `research_commit` in `config.json` |
+| Size | counted 10.87 MiB (11.40 MB; bit-level bound: encoder codes + vocabulary + int8 heads; no file is stored that way); on disk 35.2 MB (weights directory); download about 169.6 MB (weights + the full base model the runtime fetches on first load); resident 110.4 MB (state tensors and the dequantised low-bit encoder held while predicting; the runtime also holds the fp32 base model, about 133 MB) |
+| Latency (CPU, Python reference, 1 thread, one record per call) | td development suite: warm 356.6 ms mean / 363.1 ms median per record, cold 1,922.0 / 1,413.7 ms (protocol, box and other suites: README "Latency") |
 | Language | English only (§6) |
 | Licence | weights **CC BY-SA 4.0**; code Apache-2.0 |
 | Base model | `intfloat/e5-small-v2` (MIT), revision `ffb93f3bd4047442299a41ebb6fa998a38507c52` |
@@ -38,44 +39,51 @@ Usage: the repository README.
   (the same question ids and option keys).
 - Option texts are read as text, so new label spaces can be asked zero-shot; quality on unseen workflows is limited (§6).
 
-## 2. Architecture (v1.1.0)
+## 2. Architecture (v1.0.1 = v1.0.0)
+
+v1.0.1 keeps the v1.0.0 architecture and code exactly (runtime modules unchanged); only the training pool (v2b) and the
+encoder checkpoint (re-distilled on v2b texts) differ. A set of architecture changes from the round-20 audit (no NLI slot,
+one signed and bounded bias weight, a pre-registered new-group predictive) was evaluated as a candidate and **failed** its
+pre-registered release rule, so it is not part of any release; the audit findings it addressed still apply here and are
+stated below.
 
 **2.1 Low-bit shared encoder (the only transformer on the device).** Base `intfloat/e5-small-v2`, mean pooling,
 `query:` / `passage:` prefixes. Trimmed vocabulary chosen a priori (a dropped piece is re-split, never `[UNK]`). **2-bit**
 embeddings and feed-forward matrices, **3-bit attention**, groups of 128 input columns with fp16 step and offset; GPTQ
-initialisation, then quantisation-aware distillation to a 4-bit e5. Encoder checkpoint: {{V110_ENCODER}} (fixed and
+initialisation, then quantisation-aware distillation to a 4-bit e5. Encoder checkpoint: `lowbit-b3b010513f948ceb`
+(distilled on the 20,932 pool-v2b texts; fidelity: pooled cosine to the 4-bit e5 .992 on held-out pool texts; fixed and
 recorded before fitting). The state is encoded **once** per record; JSON fields are read by key-aware attention.
 
-**2.2 Expert pool, int8 heads.** 9 expert slots in v1.1.0 (v1.0.0: 11): a deep convex conditional logit over
-label-agnostic features (zero-shot capable), wide sparse state-token × option-slot crosses, a rich bilinear/ordinal/MLP
-scorer, a centred prior-free expert, field attention, relational evidence over JSON cross-field relations, a slot-free
-relational reader, a distilled decision-encoder scorer, and a product-of-experts pair (§2.3). The v1.0.0 distilled NLI
-pair head is removed: it was exactly 0 on every JSON state and had no measured development benefit. Every head is fitted
-on the low-bit encoder's features and compacted to **int8** (per-row int8 matrices; int8 cross weights with 40-bit hashed
-keys). Experts that read seen option slots only (attention, relational, slot-free reader) are skipped on batches without
-a seen row (identical output).
+**2.2 Expert pool, int8 heads.** 11 expert slots: a deep convex conditional logit over label-agnostic features (zero-shot
+capable), wide sparse state-token × option-slot crosses, a rich bilinear/ordinal/MLP scorer, a centred prior-free expert,
+field attention, relational evidence over JSON cross-field relations, a slot-free relational reader, a distilled
+decision-encoder scorer, a distilled NLI pair head, and a product-of-experts pair (§2.3). The NLI pair head is silent
+(exactly 0) on JSON states (measured with this code for v1.0.0, audit finding A1-5). Every head is fitted on the low-bit encoder's features and compacted to
+**int8** (per-row int8 matrices; int8 cross weights with 40-bit hashed keys).
 
 **2.3 Option-text bias expert.** A **bias-only expert** reads the question and the option texts but not the state; the main
 deep expert is trained as a product of experts with the frozen bias logits as an offset (Clark et al. 2019; He et al.
-2019), and the bias expert enters the pool with **one signed weight**. On unseen option slots that weight is constrained
-to (−1, 0), so the option-text prior is divided out at most once. Whether this helps on a new workflow is a per-suite
-question: it is reported against state-free baselines (always the option with the lowest / highest bias logit),
-{{V110_POE_BASELINES}}; no transfer claim is made where the model does not beat both.
+2019), and the bias enters the pool as a pair `[z_b, −z_b]` with two non-negative weights, i.e. one signed coefficient. The
+coefficient is not bounded, so in unseen cells the option-text prior can be divided out more than once (audit M-16).
+Whether the debiasing helps on a new workflow is a per-suite question, reported against state-free baselines (always the
+option with the lowest / highest bias logit): on the development suites (micro accuracy per cell of question type ×
+structured state) v1.0.1 beats both baselines in all 3 td cells, in 2 of 3 zs_td cells (noul: lowest-bias baseline .622,
+model .573) and in 2 of 4 zs_wide cells (JSON noul: highest-bias baseline .590, model .482; JSON score: .308 vs .249); no
+transfer claim is made where the model does not beat both.
 
 **2.4 Teachers (fit time only; nothing ships).** A decision encoder (e5 layers 10-12 fine-tuned on the training pool)
-distilled from its out-of-fold distributions. No large teacher is used. (v1.0.0 also distilled the NLI cross-encoder
-`cross-encoder/nli-deberta-v3-xsmall`; v1.1.0 does not ship that head.)
+distilled from its out-of-fold distributions, and the NLI cross-encoder `cross-encoder/nli-deberta-v3-xsmall` (Apache-2.0)
+distilled into the NLI pair head. No large teacher is used.
 
 **2.5 Group-honest stacking.**
 - Log-linear pool with lapse per calibration cell (question type × seen/unseen option slots × structured state):
   `p = (1 - eps) softmax(sum_e a_e z_e) + eps / K`; a selective correctness head is adopted per regime only where it beats
   the pool.
 - **Group-honest nested cross-fitting**: rows for a held-out group come only from models and teachers that never saw it.
-- **New-group predictive, pre-registered.** For each regime of the unseen-slot pool the shipped predictive is the
-  plug-in per-cell fit ('flat', no hierarchy) unless the regime has at least 12 training groups and both type-II-ML scales
-  lie strictly inside their grid; pool v2b has 7 groups (4 plain-text, 3 JSON), so both regimes ship 'flat'. (v1.0.0
-  chose its JSON predictive among four by a .0014-nat leave-one-group-out margin on 3 groups; its hierarchy scales sat at
-  the grid edge.)
+- **New-group predictive, chosen in fit.** For each regime of the unseen-slot pool (plain text, JSON) one of four
+  predictives is chosen by a leave-one-group-out check over the training groups; v1.0.1 chose 'groups' (plain text, 4
+  groups) and 'mean' (JSON, 3 groups). With so few groups that choice is weakly supported, and the hierarchy's scales sit at
+  the edge of their grid (audit M-4 / M-19), so the hierarchy acts as a plug-in estimate, not a fitted hierarchy.
 
 ## 3. Training data (pool v2b)
 
@@ -127,9 +135,26 @@ Not in the training data: Typed Decisions `security_incidents` (the `zs_td` suit
 
 ## 5. Results
 
-**v1.1.0** (final suites, scored once): {{V110_RESULTS_TABLE}}, with per suite NLL, micro accuracy and ECE15 with 95%
-record-cluster CIs, the ECE floor (calibrated: yes / no), and certified automation for that suite only. zs_wide final
-macro_real {{V110_ZSW_FINAL_MACRO_REAL}}; GLM-synthetic workflows separately {{V110_ZSW_FINAL_GLMSYN}}.
+**v1.0.1** (final suites, scored once, 2026-10-08: `benchmark/results/run3/RUN3.md`). 95% record-cluster CIs; calibrated
+= observed ECE15 at or below the 95th percentile of a perfectly calibrated model's ECE15 on that suite.
+
+| Suite | NLL [95% CI] | Micro accuracy [95% CI] | ECE15 [95% CI] | Calibrated on this suite | Certified automation, this suite only (coverage / error) |
+|---|---|---|---|---|---|
+| td (seen workflows) | .663 [.613, .716] | .721 [.695, .746] | .071 [.050, .094] | no (floor q95 .034) | .300 / .056 |
+| zs_td (`security_incidents`, selected on) | 1.145 [1.113, 1.180] | .422 [.388, .452] | .094 [.068, .135] | no (.059) | 0 |
+| zs_massive (leak-free) | .481 [.430, .530] | .832 [.808, .857] | .051 [.041, .073] | no (.040) | .798 / .080 |
+| tickets | .629 [.583, .680] | .712 [.679, .746] | .033 [.028, .080] | yes (.061) | 0 |
+| tickets_ood | .715 [.650, .787] | .683 [.639, .726] | .050 [.039, .099] | yes (.072) | 0 |
+| zs_wide (147 unseen workflows; micro, all sources) | 1.196 [1.176, 1.220] | .422 [.405, .439] | .121 [.108, .137] | no (.027) | 0 |
+
+zs_wide final macro_real (group-macro accuracy over the real sources SNI, SGD and ABCD, 105 workflows; t interval over
+workflows within sources) **.419 [.379, .458]**: the unseen-workflow number. GLM-synthetic workflows separately: .358
+[.323, .394] (42 workflows). Mean NLL over td, zs_td, zs_massive and tickets: .7297 (v1.0.0: .7256). Seed variability of
+this code and data (6 fits, development suites): between-seed SD .0105 in that metric, .019 in zs_wide macro_real, .037 in
+zs_td micro accuracy; the v1.0.1 versus v1.0.0 differences are not evidence of a change (largest: zs_td −.068 micro
+accuracy, about 1.3 SDs of a two-fit difference). Against the rivals' sealed runs (paired CIs in
+RUN3.md), v1.0.1 has lower micro accuracy than the 144M-0.8B rivals and the hosted Jev on zs_td and zs_massive (except
+Julia-1 on zs_massive) and than laya on td; no calibration, latency or size ranking is claimed.
 
 **Calibration status, v1.0.0 development suites** (observed ECE15 vs the 95th percentile of a perfectly calibrated model's
 ECE15 on the same suite): td .036 vs .048 and tickets .076 vs .088: **calibrated**; zs_massive .043 vs .041, zs_td .109
@@ -190,8 +215,8 @@ calibration ranking is claimed; no latency or size ranking is claimed either (RE
 The weights are licensed under **Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)**. Adaptations
 must be shared under CC BY-SA 4.0 or a compatible licence. Suggested attribution:
 
-> ej 1.1.0 by the ej contributors, licensed under CC BY-SA 4.0
+> ej 1.0.1 by the ej contributors, licensed under CC BY-SA 4.0
 > (https://creativecommons.org/licenses/by-sa/4.0/). Derived from intfloat/e5-small-v2 (MIT; Wang et al., arXiv:2212.03533)
 > and trained on Typed Decisions (Apache-2.0), Banking77 (CC BY 4.0), CLINC150 (CC BY 3.0), GoEmotions (Apache-2.0) and an
-> in-house support-ticket corpus written with Claude Haiku (not released). Full notices, creators and open questions:
-> NOTICE.
+> in-house support-ticket corpus written with Claude Haiku (not released), with distillation from
+> cross-encoder/nli-deberta-v3-xsmall (Apache-2.0). Full notices, creators and open questions: NOTICE.

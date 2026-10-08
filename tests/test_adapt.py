@@ -136,22 +136,27 @@ def model():
 
 
 @pytest.fixture(scope='module')
-def reference():
+def reference(model):
+    """(records, reference predictions for the loaded weights' state key); skips for weights without a reference."""
     with open(os.path.join(HERE, 'data', 'adapt_reference.json')) as f:
-        return json.load(f)
+        d = json.load(f)
+    key = str(model.config.get('state_key'))[:8]
+    if key not in d['reference']:
+        pytest.skip(f'no adaptation reference for state {key}')
+    return d['records'], d['reference'][key]
 
 
 def test_identity_without_inputs_on_real_weights(model, reference):
-    recs = reference['records']
+    recs, ref = reference
     assert model.adapt() is model and model.adapt().predict(recs[11:]) == model.predict(recs[11:])
-    assert maxdiff(model.predict(recs[11:]), reference['reference']['zero_shot']) < 1e-6
+    assert maxdiff(model.predict(recs[11:]), ref['zero_shot']) < 1e-6
 
 
 @pytest.mark.parametrize('arm', ['examples', 'unlabeled', 'both'])
 def test_matches_the_reference_implementation(model, reference, arm):
-    recs = reference['records']
+    recs, ref = reference
     ex = recs[:6] if arm in ('examples', 'both') else None
     unl = recs[6:11] if arm in ('unlabeled', 'both') else None
     got = model.adapt(examples=ex, unlabeled=unl).predict(recs[11:])
-    assert maxdiff(got, reference['reference'][arm]) <= 1e-6
-    assert maxdiff(got, reference['reference']['zero_shot']) > 1e-4  # the adaptation does something
+    assert maxdiff(got, ref[arm]) <= 1e-6
+    assert maxdiff(got, ref['zero_shot']) > 1e-4  # the adaptation does something

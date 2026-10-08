@@ -4,8 +4,8 @@ Not part of the ej package and never reached by ej.load / Model.predict (audit M
 and after ej.load every runtime module's torch.load / pickle.load refuses (ej.scope.forbid_unpickling). Unpickling runs
 arbitrary code, so this module refuses unless BOTH hold:
   - the environment variable EJ_MAINTAINER_UNPICKLE=1 is set (an explicit, per-process opt-in), and
-  - each file's sha256 equals a known value (KNOWN_STATES / --state-sha for the state, LOWBIT_SHA256 for the encoder),
-    checked BEFORE the file is opened by torch.
+  - each file's sha256 equals a known value (KNOWN_STATES / --state-sha for the state, LOWBIT_SHA256 by encoder directory
+    for the encoder), checked BEFORE the file is opened by torch.
 Used by scripts/hf_layout.py --state-pt / --w23-pt."""
 import os
 import sys
@@ -16,11 +16,15 @@ if os.path.join(ROOT, 'src') not in sys.path:
 from ej import integrity, loader, safe  # noqa: E402
 
 OPT_IN = 'EJ_MAINTAINER_UNPICKLE'
-LOWBIT_REL = os.path.join('lowbit-9c15e5f8f8e3b927', 'w23.pt')
-LOWBIT_SHA256 = 'd1a0fdf22fabaa3d09efa77c0d5f89fa1e12b6a4f5b57b82bbcd3f72f95abd2f'
+# Pickled low-bit encoders (w23.pt) by checkpoint directory, with their verified sha256.
+LOWBIT_SHA256 = {
+    'lowbit-9c15e5f8f8e3b927': 'd1a0fdf22fabaa3d09efa77c0d5f89fa1e12b6a4f5b57b82bbcd3f72f95abd2f',  # v1.0.0 (pool v2 texts)
+    'lowbit-b3b010513f948ceb': 'd386291e794cd69725eb9d8cd89e4b88de8325664af90cd5299fe26dc39c252b',  # v1.0.1 (pool v2b texts)
+}
 # Pickled state files with their verified sha256 (add a released file at packaging time).
 KNOWN_STATES = {
-    'state-14a3e64fb5675f19.pt': 'fb4e8bd7c0e9dc31fb6f65a850bbf96fab2fcaca1f932909ca9d8c8e36dbc81f',
+    'state-14a3e64fb5675f19.pt': 'fb4e8bd7c0e9dc31fb6f65a850bbf96fab2fcaca1f932909ca9d8c8e36dbc81f',  # v1.0.0 (withdrawn)
+    'state-3b3e66d28fb423f9.pt': '730630f0e130431600539e12aa986068cdb31ae0e03e1a878f58c1aaadd00379',  # v1.0.1
 }
 
 
@@ -35,9 +39,13 @@ def require_opt_in():
 
 
 def verify_files(state_path, state_sha256, lowbit):
-    """sha256 of the pickled state and of the pickled low-bit encoder, before anything is unpickled."""
+    """sha256 of the pickled state and of the pickled low-bit encoder (looked up by its directory), before anything is
+    unpickled."""
     integrity.check_sha(state_path, state_sha256, 'state file')
-    integrity.check_sha(lowbit, LOWBIT_SHA256, 'low-bit encoder')
+    want = LOWBIT_SHA256.get(os.path.basename(os.path.dirname(os.path.abspath(lowbit))))
+    if want is None:
+        raise MaintainerOnly(f'{lowbit}: encoder directory not in LOWBIT_SHA256; refusing to unpickle it')
+    integrity.check_sha(lowbit, want, 'low-bit encoder')
 
 
 def export_pickles(state_pt, w23_pt, state_sha, tmp):

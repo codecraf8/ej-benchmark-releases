@@ -1,12 +1,12 @@
-# ej data card (training pool v2b for v1.1.0; pool v2 of the withdrawn v1.0.0)
+# ej data card (training pool v2b for v1.0.1; pool v2 of the withdrawn v1.0.0)
 
-ej 1.1.0 is fitted on training pool **v2b**. v2b is pool v2 (used by the withdrawn v1.0.0) without the Amazon
+ej 1.0.1 is fitted on training pool **v2b**. v2b is pool v2 (used by the withdrawn v1.0.0) without the Amazon
 counterfactual source, whose upstream licence is CC BY-NC 4.0 (§5). Counts come from counting records per source and
 workflow in the pool file; no evaluation record was read.
 
 ## 1. Summary
 
-| Item | Pool v2b (v1.1.0) | Pool v2 (v1.0.0, withdrawn) |
+| Item | Pool v2b (v1.0.1) | Pool v2 (v1.0.0, withdrawn) |
 |---|---|---|
 | sha256 of `train/pool.jsonl` | `ce1c1a6fecfd62a90317f6efc4f90fd5f9261becb7081fd00235a6f4d5ee9dbe` | `35b11986cdcdda04d3a8dfb430c321a74096b21218eb647cf33470a0897ef67d` |
 | Records / questions | 9,719 / 14,223 | 12,719 / 17,223 |
@@ -78,9 +78,10 @@ provider terms allow training openly released weights on these outputs is an ope
 by the same model (blind self-consistency filter only; no independent annotation). They are evaluation data, never
 training data, and are reported separately from the real-source workflows.
 **Training-time derivatives.** All derived signals come from pool texts only: out-of-fold decision-encoder distributions,
-the trimmed encoder vocabulary, and a fidelity slice of pool texts for the encoder's quantisation-aware distillation
-(v1.0.0 additionally: NLI teacher labels on an augmented transfer set of pool pairs). Remote GPU jobs received only pool
-data and pool-derived caches.
+NLI teacher labels on an augmented transfer set of pool pairs, the trimmed encoder vocabulary, and a fidelity slice of pool
+texts for the encoder's quantisation-aware distillation. For v1.0.1 all of them, including the encoder's vocabulary and
+distillation texts, come from pool v2b (20,932 texts; 0 texts that occur only in counterfactual records). Remote GPU jobs
+received only pool data and pool-derived caches.
 
 ## 7. Known data limitations
 

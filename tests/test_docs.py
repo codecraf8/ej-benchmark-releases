@@ -10,7 +10,8 @@ import ej
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DOCS = ['README.md', 'docs/MODEL_CARD.md', 'docs/DATA_CARD.md', 'NOTICE', 'CHANGELOG.md', 'benchmark/README.md',
-        'benchmark/METHOD.md', 'benchmark/results/run2/RUN2.md']
+        'benchmark/METHOD.md', 'benchmark/results/run2/RUN2.md',
+        'benchmark/results/run3/RUN3.md']
 
 
 def read(rel):
@@ -146,7 +147,14 @@ def test_m37_ci_runs_tests_without_deploying():
         assert word not in wf.replace('no deployment', ''), word
 
 
-def test_v110_placeholders_are_well_formed():
+def test_release_docs_have_no_unfilled_placeholders():
     for rel in DOCS:
-        for m in re.findall(r'\{\{[^}]*\}\}', read(rel)):
-            assert re.fullmatch(r'\{\{V110_[A-Z0-9_]+\}\}', m), (rel, m)
+        assert not re.findall(r'\{\{[^}]*\}\}|@@[A-Z0-9_]+@@', read(rel)), rel
+
+
+def test_v101_is_the_licence_fix_and_no_v110_release_is_described():
+    for rel in ('README.md', 'docs/MODEL_CARD.md', 'CHANGELOG.md'):
+        t = flat(rel)
+        assert 'licence fix of the withdrawn v1.0.0; same architecture' in t, rel
+        assert 'v1.1.0' not in t and 'ej 1.1.0' not in t, rel
+    assert 'macro_real' in flat('README.md') and '.419 [.379, .458]' in flat('README.md')

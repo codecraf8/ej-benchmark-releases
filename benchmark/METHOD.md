@@ -107,5 +107,5 @@ when the suite is private) and `<suite>.<model>.summary.json` (aggregates; what 
 4. Julia-1 on td / zs_td is flagged likely in-domain from its validation-set names (training data undisclosed).
 5. Jev is scored as served: 2-decimal probabilities plus EPS smoothing, one non-deterministic draw frozen by the cache
    (no draw-to-draw spread was measured, so differences of a few points against Jev are not claims).
-6. No CI was computed for the run-2 cells; from v1.1.0 every cell carries a record-cluster CI and every ej-vs-rival
+6. No CI was computed for the run-2 cells; from v1.0.1 (run 3) every cell carries a record-cluster CI and every ej-vs-rival
    difference a paired CI, and an ordering is stated only where that CI excludes 0.

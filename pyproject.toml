@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ej"
-version = "1.1.0.dev0"
+version = "1.0.1"
 description = "Calibrated typed decisions (choice / yes-no / score) in one pass, on device, without generating tokens"
 readme = "README.md"
 requires-python = ">=3.10"
